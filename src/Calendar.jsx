@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "preact/hooks";
+import { supabase } from "./supabase";
 
-const Calendar = () => {
+const Calendar = ({ email }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [yearInput, setYearInput] = useState(
     currentDate.getFullYear().toString()
   );
+  const [monthlyData, setMonthlyData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
 
   const months = [
     "January",
@@ -23,13 +26,106 @@ const Calendar = () => {
 
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const getDaysInMonth = (year, month) => {
-    return new Date(year, month + 1, 0).getDate();
+  // Fetch monthly data
+  const fetchMonthlyData = async () => {
+    if (!email) return;
+
+    console.log("Fetching monthly data...");
+    setIsLoading(true);
+
+    const startDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const endDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
+
+    try {
+      const { data, error } = await supabase
+        .from("time_logs")
+        .select("date, total_seconds")
+        .eq("email", email)
+        .gte("date", startDate.toISOString().split("T")[0])
+        .lte("date", endDate.toISOString().split("T")[0]);
+
+      if (error) throw error;
+
+      console.log("Received data:", data);
+
+      const dateMap = {};
+      data.forEach((log) => {
+        dateMap[log.date] = Math.round(log.total_seconds);
+      });
+
+      console.log("Setting monthly data:", dateMap);
+      setMonthlyData(dateMap);
+    } catch (error) {
+      console.error("Error fetching monthly data:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const getFirstDayOfMonth = (year, month) => {
-    return new Date(year, month, 1).getDay();
-  };
+  useEffect(() => {
+    if (!email) return;
+
+    console.log("Setting up realtime subscription for:", email);
+
+    // Initial fetch
+    fetchMonthlyData();
+
+    const channelA = supabase
+      .channel("changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "time_logs",
+        },
+        (payload) => {
+          console.log("Received UPDATE:", payload);
+          fetchMonthlyData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "time_logs",
+        },
+        (payload) => {
+          console.log("Received INSERT:", payload);
+          fetchMonthlyData();
+        }
+      )
+      .subscribe(async (status, err) => {
+        if (err) {
+          console.error("Subscription error:", err);
+        } else {
+          console.log("Subscription status:", status);
+        }
+
+        // Test subscription
+        const testSub = await supabase.from("time_logs").select("*").limit(1);
+        console.log("Test query result:", testSub);
+      });
+
+    return () => {
+      console.log("Cleaning up subscription");
+      channelA.unsubscribe();
+    };
+  }, [email]);
+
+  // Refetch when month/year changes
+  useEffect(() => {
+    fetchMonthlyData();
+  }, [currentDate]);
 
   const handlePrevMonth = () => {
     setCurrentDate((prev) => {
@@ -56,22 +152,36 @@ const Calendar = () => {
   const handleYearChange = (e) => {
     const value = e.target.value;
     setYearInput(value);
-
-    // Only update the date if the year is valid
     if (value.length === 4 && !isNaN(value)) {
       setCurrentDate(new Date(parseInt(value), currentDate.getMonth()));
     }
   };
 
+  const formatTime = (seconds) => {
+    if (!seconds) return null;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    if (hours > 0) {
+      const formattedMinutes = minutes.toString().padStart(2, "0");
+      return `${hours}h ${formattedMinutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
   const renderCalendar = () => {
-    const daysInMonth = getDaysInMonth(
+    const daysInMonth = new Date(
       currentDate.getFullYear(),
-      currentDate.getMonth()
-    );
-    const firstDayOfMonth = getFirstDayOfMonth(
+      currentDate.getMonth() + 1,
+      0
+    ).getDate();
+
+    const firstDayOfMonth = new Date(
       currentDate.getFullYear(),
-      currentDate.getMonth()
-    );
+      currentDate.getMonth(),
+      1
+    ).getDay();
+
     const days = [];
 
     // Add empty cells for days before the first day of the month
@@ -88,6 +198,9 @@ const Calendar = () => {
         currentDate.getMonth(),
         day
       );
+      const dateString = date.toISOString().split("T")[0];
+      const seconds = monthlyData[dateString];
+      const isToday = new Date().toISOString().split("T")[0] === dateString;
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
       days.push(
@@ -95,14 +208,40 @@ const Calendar = () => {
           key={day}
           className={`h-24 border border-gray-200 p-2 ${
             isWeekend ? "bg-gray-50" : ""
-          }`}
+          } ${isToday ? "ring-2 ring-blue-500" : ""}`}
         >
-          <span className="text-sm">{day}</span>
+          <div className="flex flex-col h-full">
+            <span className={`text-sm ${isToday ? "font-semibold" : ""}`}>
+              {day}
+            </span>
+            {seconds > 0 && (
+              <div className="mt-auto">
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  {formatTime(seconds)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       );
     }
 
     return days;
+  };
+
+  const renderMonthSummary = () => {
+    let totalSeconds = 0;
+    Object.values(monthlyData).forEach((seconds) => {
+      if (seconds) totalSeconds += seconds;
+    });
+
+    if (totalSeconds === 0) return null;
+
+    return (
+      <div className="text-sm text-gray-600 mb-2">
+        Monthly total: {formatTime(totalSeconds)}
+      </div>
+    );
   };
 
   return (
@@ -145,6 +284,9 @@ const Calendar = () => {
           →
         </button>
       </div>
+
+      {/* Monthly summary */}
+      {renderMonthSummary()}
 
       {/* Day names */}
       <div className="grid grid-cols-7 gap-1 mb-1">

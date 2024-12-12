@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "preact/hooks";
+import { updateTimeLog } from "./timeUtils";
+import { supabase } from "./supabase";
 
 const NEWS_CHANNELS = [
   {
@@ -27,31 +29,42 @@ const NEWS_CHANNELS = [
   },
 ];
 
-const Player = () => {
+const Player = ({ email }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [time, setTime] = useState(0);
+  const [totalDayTime, setTotalDayTime] = useState(0);
   const [intervalId, setIntervalId] = useState(null);
   const [selectedChannel, setSelectedChannel] = useState(NEWS_CHANNELS[0]);
   const playerRef = useRef(null);
+  const lastUpdateTimeRef = useRef(0);
 
-  // Cleanup on unmount
+  // Fetch total time for today when component mounts
   useEffect(() => {
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+    const fetchTodayTotal = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const { data, error } = await supabase
+        .from("time_logs")
+        .select("total_seconds")
+        .eq("email", email)
+        .eq("date", today)
+        .single();
+
+      if (data) {
+        setTotalDayTime(data.total_seconds);
+        lastUpdateTimeRef.current = data.total_seconds;
       }
     };
-  }, [intervalId]);
 
+    fetchTodayTotal();
+  }, [email]);
+
+  // Initialize YouTube API
   useEffect(() => {
-    // Add YouTube API
     const tag = document.createElement("script");
     tag.src = "https://www.youtube.com/iframe_api";
     const firstScriptTag = document.getElementsByTagName("script")[0];
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-    // Create YouTube player when API is ready
     window["onYouTubeIframeAPIReady"] = () => {
       createPlayer(selectedChannel.videoId);
     };
@@ -82,6 +95,19 @@ const Player = () => {
       setIsBuffering(false);
       stopTimer();
       setIsPlaying(false);
+
+      // Update any remaining time since last 15-second boundary
+      const timeSinceLastUpdate = totalDayTime - lastUpdateTimeRef.current;
+      if (timeSinceLastUpdate > 0) {
+        console.log(
+          `Updating remaining time on pause: ${timeSinceLastUpdate} seconds`
+        );
+        updateTimeLog(email, timeSinceLastUpdate)
+          .then(() => {
+            lastUpdateTimeRef.current = totalDayTime;
+          })
+          .catch(console.error);
+      }
     } else if (event.data === 3) {
       // Buffering
       setIsBuffering(true);
@@ -99,6 +125,19 @@ const Player = () => {
     setIsBuffering(true);
     stopTimer();
 
+    // Update any remaining time since last 15-second boundary
+    const timeSinceLastUpdate = totalDayTime - lastUpdateTimeRef.current;
+    if (timeSinceLastUpdate > 0) {
+      console.log(
+        `Updating remaining time on channel change: ${timeSinceLastUpdate} seconds`
+      );
+      updateTimeLog(email, timeSinceLastUpdate)
+        .then(() => {
+          lastUpdateTimeRef.current = totalDayTime;
+        })
+        .catch(console.error);
+    }
+
     if (playerRef.current) {
       playerRef.current.loadVideoById({
         videoId: newChannel.videoId,
@@ -110,9 +149,28 @@ const Player = () => {
     if (intervalId) {
       clearInterval(intervalId);
     }
+
     const id = window.setInterval(() => {
-      setTime((prevTime) => prevTime + 1);
+      setTotalDayTime((prev) => {
+        const newTotal = prev + 1;
+
+        // Check if we've crossed a 15-second boundary
+        if (newTotal % 15 === 0) {
+          console.log(
+            `15-second boundary hit at total time: ${newTotal} seconds`
+          );
+          const timeSinceLastUpdate = 15; // We know it's exactly 15 seconds
+          updateTimeLog(email, timeSinceLastUpdate)
+            .then(() => {
+              lastUpdateTimeRef.current = newTotal;
+            })
+            .catch(console.error);
+        }
+
+        return newTotal;
+      });
     }, 1000);
+
     setIntervalId(id);
   };
 
@@ -130,8 +188,6 @@ const Player = () => {
       playerRef.current.playVideo();
     } else {
       playerRef.current.pauseVideo();
-      stopTimer();
-      setIsPlaying(false);
     }
   };
 
@@ -184,7 +240,10 @@ const Player = () => {
             )}
           </button>
 
-          <div className="text-3xl font-mono">{formatTime(time)}</div>
+          <div className="flex flex-col items-end">
+            <div className="text-3xl font-mono">{formatTime(totalDayTime)}</div>
+            <div className="text-sm text-gray-500">Today's total</div>
+          </div>
         </div>
       </div>
     </div>

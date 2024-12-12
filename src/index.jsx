@@ -40,10 +40,13 @@ export function App() {
     return <Auth />;
   }
 
+  // Get user email from session
+  const userEmail = session.user.email;
+
   return (
     <div>
-      <div className="fixed top-4 right-4 flex items-center gap-4">
-        <span>{session.user.email}</span>
+      <div className="fixed top-4 right-4 flex items-center gap-4 bg-white p-2 rounded shadow-sm">
+        <span className="text-sm">{userEmail}</span>
         <button
           onClick={() => supabase.auth.signOut()}
           className="rounded bg-gray-200 px-3 py-1 text-sm hover:bg-gray-300"
@@ -52,8 +55,11 @@ export function App() {
         </button>
       </div>
 
-      <Player />
-      <Calendar />
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* Pass userEmail to both components */}
+        <Player email={userEmail} />
+        <Calendar email={userEmail} />
+      </div>
     </div>
   );
 }
