@@ -70,6 +70,7 @@ const Calendar = ({ email }) => {
     }
   };
 
+  // Set up realtime subscription
   useEffect(() => {
     if (!email) return;
 
@@ -110,10 +111,6 @@ const Calendar = ({ email }) => {
         } else {
           console.log("Subscription status:", status);
         }
-
-        // Test subscription
-        const testSub = await supabase.from("time_logs").select("*").limit(1);
-        console.log("Test query result:", testSub);
       });
 
     return () => {
@@ -187,7 +184,10 @@ const Calendar = ({ email }) => {
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth; i++) {
       days.push(
-        <div key={`empty-${i}`} className="h-24 border border-gray-200"></div>
+        <div
+          key={`empty-${i}`}
+          className="h-24 border border-gray-200 dark:border-gray-700"
+        ></div>
       );
     }
 
@@ -206,17 +206,22 @@ const Calendar = ({ email }) => {
       days.push(
         <div
           key={day}
-          className={`h-24 border border-gray-200 p-2 ${
-            isWeekend ? "bg-gray-50" : ""
-          } ${isToday ? "ring-2 ring-blue-500" : ""}`}
+          className={`h-24 border border-gray-200 dark:border-gray-700 p-2 
+            ${isWeekend ? "bg-gray-50 dark:bg-slate-900/50" : ""} 
+            ${isToday ? "ring-2 ring-blue-500" : ""}
+            transition-colors`}
         >
           <div className="flex flex-col h-full">
-            <span className={`text-sm ${isToday ? "font-semibold" : ""}`}>
+            <span
+              className={`text-sm ${
+                isToday ? "font-semibold" : ""
+              } text-gray-800 dark:text-gray-200`}
+            >
               {day}
             </span>
             {seconds > 0 && (
               <div className="mt-auto">
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 px-2 py-1 rounded">
                   {formatTime(seconds)}
                 </span>
               </div>
@@ -238,19 +243,19 @@ const Calendar = ({ email }) => {
     if (totalSeconds === 0) return null;
 
     return (
-      <div className="text-sm text-gray-600 mb-2">
+      <div className="min-h-[1.5rem] text-sm text-gray-600 dark:text-gray-300 mb-2">
         Monthly total: {formatTime(totalSeconds)}
       </div>
     );
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-colors">
       {/* Header controls */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={handlePrevMonth}
-          className="p-2 hover:bg-gray-100 rounded-full"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-800 dark:text-gray-200"
         >
           ←
         </button>
@@ -259,7 +264,7 @@ const Calendar = ({ email }) => {
           <select
             value={months[currentDate.getMonth()]}
             onChange={handleMonthChange}
-            className="border rounded px-2 py-1"
+            className="border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
           >
             {months.map((month) => (
               <option key={month} value={month}>
@@ -272,14 +277,14 @@ const Calendar = ({ email }) => {
             type="text"
             value={yearInput}
             onChange={handleYearChange}
-            className="border rounded px-2 py-1 w-20 text-center"
+            className="border dark:border-gray-600 rounded px-2 py-1 w-20 text-center bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
             maxLength="4"
           />
         </div>
 
         <button
           onClick={handleNextMonth}
-          className="p-2 hover:bg-gray-100 rounded-full"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-800 dark:text-gray-200"
         >
           →
         </button>
@@ -291,7 +296,10 @@ const Calendar = ({ email }) => {
       {/* Day names */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {weekDays.map((day) => (
-          <div key={day} className="text-center font-medium py-1">
+          <div
+            key={day}
+            className="text-center font-medium py-1 text-gray-800 dark:text-gray-200"
+          >
             {day}
           </div>
         ))}

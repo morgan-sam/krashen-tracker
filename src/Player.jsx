@@ -36,7 +36,7 @@ const Player = ({ email }) => {
   const [intervalId, setIntervalId] = useState(null);
   const [selectedChannel, setSelectedChannel] = useState(NEWS_CHANNELS[0]);
   const playerRef = useRef(null);
-  const lastUpdateTimeRef = useRef(0);
+  const lastUpdateRef = useRef(0);
 
   // Fetch total time for today when component mounts
   useEffect(() => {
@@ -51,7 +51,7 @@ const Player = ({ email }) => {
 
       if (data) {
         setTotalDayTime(data.total_seconds);
-        lastUpdateTimeRef.current = data.total_seconds;
+        lastUpdateRef.current = data.total_seconds;
       }
     };
 
@@ -97,19 +97,15 @@ const Player = ({ email }) => {
       setIsPlaying(false);
 
       // Update any remaining time since last 15-second boundary
-      const timeSinceLastUpdate = totalDayTime - lastUpdateTimeRef.current;
+      const timeSinceLastUpdate = totalDayTime - lastUpdateRef.current;
       if (timeSinceLastUpdate > 0) {
-        console.log(
-          `Updating remaining time on pause: ${timeSinceLastUpdate} seconds`
-        );
         updateTimeLog(email, timeSinceLastUpdate)
           .then(() => {
-            lastUpdateTimeRef.current = totalDayTime;
+            lastUpdateRef.current = totalDayTime;
           })
           .catch(console.error);
       }
     } else if (event.data === 3) {
-      // Buffering
       setIsBuffering(true);
       stopTimer();
     } else {
@@ -126,14 +122,11 @@ const Player = ({ email }) => {
     stopTimer();
 
     // Update any remaining time since last 15-second boundary
-    const timeSinceLastUpdate = totalDayTime - lastUpdateTimeRef.current;
+    const timeSinceLastUpdate = totalDayTime - lastUpdateRef.current;
     if (timeSinceLastUpdate > 0) {
-      console.log(
-        `Updating remaining time on channel change: ${timeSinceLastUpdate} seconds`
-      );
       updateTimeLog(email, timeSinceLastUpdate)
         .then(() => {
-          lastUpdateTimeRef.current = totalDayTime;
+          lastUpdateRef.current = totalDayTime;
         })
         .catch(console.error);
     }
@@ -153,20 +146,15 @@ const Player = ({ email }) => {
     const id = window.setInterval(() => {
       setTotalDayTime((prev) => {
         const newTotal = prev + 1;
-
         // Check if we've crossed a 15-second boundary
         if (newTotal % 15 === 0) {
-          console.log(
-            `15-second boundary hit at total time: ${newTotal} seconds`
-          );
-          const timeSinceLastUpdate = 15; // We know it's exactly 15 seconds
-          updateTimeLog(email, timeSinceLastUpdate)
+          console.log(`15-second boundary hit at ${newTotal} seconds`);
+          updateTimeLog(email, 15)
             .then(() => {
-              lastUpdateTimeRef.current = newTotal;
+              lastUpdateRef.current = newTotal;
             })
             .catch(console.error);
         }
-
         return newTotal;
       });
     }, 1000);
@@ -200,15 +188,24 @@ const Player = ({ email }) => {
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [intervalId]);
+
   return (
     <div className="max-w-2xl mx-auto p-4">
-      <div className="bg-gray-100 rounded-lg shadow-md p-4">
+      <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md p-4 transition-colors">
         {/* Channel Selector */}
         <div className="mb-4">
           <select
             value={selectedChannel.videoId}
             onChange={handleChannelChange}
-            className="w-full p-2 border rounded bg-white shadow-sm"
+            className="w-full p-2 border dark:border-gray-600 rounded bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-gray-200"
           >
             {NEWS_CHANNELS.map((channel) => (
               <option key={channel.videoId} value={channel.videoId}>
@@ -224,15 +221,15 @@ const Player = ({ email }) => {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between bg-white p-4 rounded-lg">
+        <div className="flex items-center justify-between bg-white dark:bg-gray-700 p-4 rounded-lg">
           <button
             onClick={togglePlayPause}
             disabled={isBuffering}
-            className="text-5xl w-20 h-20 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors relative"
+            className="text-5xl w-20 h-20 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 rounded-full transition-colors relative"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isBuffering ? (
-              <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-blue-500 animate-spin"></div>
+              <div className="w-12 h-12 rounded-full border-4 border-gray-200 dark:border-gray-600 border-t-blue-500 animate-spin"></div>
             ) : isPlaying ? (
               "⏸️"
             ) : (
@@ -241,8 +238,12 @@ const Player = ({ email }) => {
           </button>
 
           <div className="flex flex-col items-end">
-            <div className="text-3xl font-mono">{formatTime(totalDayTime)}</div>
-            <div className="text-sm text-gray-500">Today's total</div>
+            <div className="text-3xl font-mono text-gray-800 dark:text-gray-200">
+              {formatTime(totalDayTime)}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Today's total
+            </div>
           </div>
         </div>
       </div>
