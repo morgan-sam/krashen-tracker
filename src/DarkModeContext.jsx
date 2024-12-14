@@ -10,6 +10,8 @@ export function DarkModeProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     // Get the current user's dark mode preference
     const fetchDarkMode = async () => {
       const session = await supabase.auth.getSession();

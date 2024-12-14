@@ -70,10 +70,18 @@ export function AppContainer() {
   );
 }
 
+// Modify hydration to only happen in browser
 if (typeof window !== "undefined") {
   hydrate(<AppContainer />, document.getElementById("app"));
 }
 
+// Return minimal content for SSR
 export async function prerender(data) {
-  return await ssr(<AppContainer {...data} />);
+  return ssr(
+    <div id="app">
+      <div className="w-full min-h-screen flex items-center justify-center bg-white">
+        <div className="text-xl">Loading...</div>
+      </div>
+    </div>
+  );
 }
