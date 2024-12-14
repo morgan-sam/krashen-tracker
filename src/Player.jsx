@@ -93,8 +93,7 @@ const Player = ({ email }) => {
     } else if (event.data === 2) {
       // Paused
       setIsBuffering(false);
-      stopTimer();
-      setIsPlaying(false);
+      setIsPlaying(false); // Set this first
 
       // Update any remaining time since last 15-second boundary
       const timeSinceLastUpdate = totalDayTime - lastUpdateRef.current;
@@ -105,7 +104,10 @@ const Player = ({ email }) => {
           })
           .catch(console.error);
       }
+
+      stopTimer(); // Stop timer last
     } else if (event.data === 3) {
+      // Buffering
       setIsBuffering(true);
       stopTimer();
     } else {
@@ -119,7 +121,7 @@ const Player = ({ email }) => {
     );
     setSelectedChannel(newChannel);
     setIsBuffering(true);
-    stopTimer();
+    setIsPlaying(false); // Add this
 
     // Update any remaining time since last 15-second boundary
     const timeSinceLastUpdate = totalDayTime - lastUpdateRef.current;
@@ -130,6 +132,8 @@ const Player = ({ email }) => {
         })
         .catch(console.error);
     }
+
+    stopTimer();
 
     if (playerRef.current) {
       playerRef.current.loadVideoById({
@@ -176,6 +180,8 @@ const Player = ({ email }) => {
       playerRef.current.playVideo();
     } else {
       playerRef.current.pauseVideo();
+      setIsPlaying(false); // Add this
+      stopTimer(); // Add this
     }
   };
 
