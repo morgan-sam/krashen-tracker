@@ -6,15 +6,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
-    plugins: [
-      preact({
-        prerender: {
-          enabled: true,
-          renderTarget: "#app",
-        },
-      }),
-    ],
     base: "/krashen-tracker/",
+    plugins: [preact()],
     define: {
       // For production build, embed env variables
       ...(mode === "production" && {
